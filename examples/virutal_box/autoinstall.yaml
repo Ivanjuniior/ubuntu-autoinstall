@@ -1,0 +1,117 @@
+# AUTOINSTALL - TESTE (VirtualBox - resiliente)
+
+autoinstall:
+  version: 1
+
+  locale: pt_BR.UTF-8
+  timezone: America/Bahia
+
+  keyboard:
+    layout: br
+
+  network:
+    version: 2
+    ethernets:
+      any:
+        match:
+          name: "en*"
+        dhcp4: true
+        optional: true
+
+  identity:
+    hostname: teste-vm
+    realname: 'Ivan Junior'
+    username: ivanjr
+    password: '$y$j9T$PbPDF2j2ruLG/dmh/folQ1$HmvspHbWRF8/bLMiEmBNQGc81axoSkCfOfOfwBlq4SB'
+
+  users:
+    - name: ivanjr
+      sudo: ALL=(ALL) NOPASSWD:ALL
+      groups: sudo
+      shell: /bin/bash
+      lock_passwd: false
+
+  storage:
+    layout:
+      name: direct
+
+  packages:
+    - vim
+    - curl
+    - htop
+    - git
+    - unzip
+    - net-tools
+    - openssh-server
+    - build-essential
+    - audacity
+    - filezilla
+    - obs-studio
+    - virtualbox
+    - r-base
+
+  snaps:
+    - {name: postman}
+    - {name: dbeaver-ce}
+    - {name: keepassxc}
+    - {name: simplenote}
+    - {name: termius-app}
+    - {name: visual-studio-code, classic: true}
+
+  late-commands:
+
+    # Ambiente estável
+    - curtin in-target -- bash -c "export DEBIAN_FRONTEND=noninteractive"
+    - curtin in-target -- bash -c "echo 'nameserver 8.8.8.8' > /etc/resolv.conf"
+
+    # Validar internet
+    - curtin in-target -- bash -c "for i in {1..10}; do ping -c1 google.com && break || sleep 5; done"
+
+    # Atualização
+    - curtin in-target -- bash -c "apt update"
+
+    # Snap fix
+    - curtin in-target -- systemctl restart snapd
+    - curtin in-target -- sleep 10
+
+    # Função retry
+    - curtin in-target -- bash -c 'cat <<EOF > /usr/local/bin/retry.sh
+#!/bin/bash
+n=0
+until [ $n -ge 5 ]
+do
+  "$@" && break
+  n=$((n+1))
+  sleep 5
+done
+EOF'
+    - curtin in-target -- chmod +x /usr/local/bin/retry.sh
+
+    # Chrome
+    - curtin in-target -- retry.sh wget -O /tmp/chrome.deb https://dl.google.com/linux/direct/google-chrome-stable_current_amd64.deb
+    - curtin in-target -- bash -c "dpkg -i /tmp/chrome.deb || apt -f install -y"
+
+    # Edge
+    - curtin in-target -- retry.sh wget -O /tmp/edge.deb https://packages.microsoft.com/repos/edge/pool/main/m/microsoft-edge-stable/microsoft-edge-stable_amd64.deb
+    - curtin in-target -- bash -c "dpkg -i /tmp/edge.deb || apt -f install -y"
+
+    # AnyDesk
+    - curtin in-target -- retry.sh wget -O /tmp/anydesk.deb https://download.anydesk.com/linux/anydesk_6.2.1-1_amd64.deb
+    - curtin in-target -- bash -c "dpkg -i /tmp/anydesk.deb || apt -f install -y"
+
+    # RStudio
+    - curtin in-target -- retry.sh wget -O /tmp/rstudio.deb https://download1.rstudio.org/electron/jammy/amd64/rstudio-2023.12.1-402-amd64.deb
+    - curtin in-target -- bash -c "dpkg -i /tmp/rstudio.deb || apt -f install -y"
+
+    # SSH
+    - curtin in-target -- systemctl enable ssh
+
+    # Limpeza
+    - curtin in-target -- apt autoremove -y
+    - curtin in-target -- apt clean
+
+    # Log
+    - curtin in-target -- bash -c "echo 'INSTALL OK' > /home/ivanjr/install.log"
+
+  shutdown: reboot
+
